@@ -1,7 +1,7 @@
 from functools import wraps
 from tornado.escape import json_decode
 from tornado.web import HTTPError
-from task_store import TaskStore
+from .task_store import TaskStore
 from datetime import datetime
 import time
 

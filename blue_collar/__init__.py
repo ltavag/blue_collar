@@ -6,16 +6,17 @@ from concurrent.futures import ProcessPoolExecutor
 from tornado.escape import (
         json_decode,
 )
-from tornado import gen
+from tornado import gen, log
 import json
 from hashlib import sha256
+import logging
 
-from task_store import TaskStore
-from task import Task
-from util import json_serial
-from executor import dispatch
+from .task_store import TaskStore
+from .task import Task
+from .util import json_serial
+from .executor import dispatch
 
-import task1
+tornado.log.enable_pretty_logging()
 
 
 
@@ -66,18 +67,14 @@ class TaskHandler(tornado.web.RequestHandler):
         return self.redirect('/tasks/{}'.format(task_id))
 
 
-def main():
+def work(port=8888, max_workers=4):
     application = tornado.web.Application([
         (r"/tasks[/]{0,1}(.*)", TaskHandler)
     ])
 
-    application.worker_pool = ProcessPoolExecutor(max_workers=4)
+    application.worker_pool = ProcessPoolExecutor(max_workers=max_workers)
     application.task_store = TaskStore()
 
     http_server = tornado.httpserver.HTTPServer(application)
-    http_server.listen(8888)
+    http_server.listen(port)
     tornado.ioloop.IOLoop.current().start()
-
-
-if __name__ == "__main__":
-    main()

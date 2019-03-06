@@ -1,22 +1,22 @@
-from task_runner import TaskRunner
-from executor import command
+import blue_collar
+from blue_collar.task_runner import TaskRunner
+from blue_collar.executor import command
 import time
 
 
-@command('hi')
-class Task1(TaskRunner):
+@command('sleeper')
+class Sleeper(TaskRunner):
     """An example task."""
 
-    @TaskRunner.step(status='hi', order=1)
+    @TaskRunner.step(status='first_sleep', order=1)
     def fn1(message):
         time.sleep(20) 
-        print('hi')
+        print('Woke up to pee!')
 
-    @TaskRunner.step(status='bye', order=2)
+    @TaskRunner.step(status='second_sleep', order=2)
     def fn2(message):
         time.sleep(10) 
-        print('bye')
+        print('It must be morning')
 
 if __name__ == '__main__':
-    x = Task1()
-    print(x.step.all())
+    blue_collar.work()

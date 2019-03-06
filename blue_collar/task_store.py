@@ -1,6 +1,6 @@
 import lmdb
 from collections import defaultdict
-from util import json_serial
+from .util import json_serial
 import json
 
 class TaskStore:
