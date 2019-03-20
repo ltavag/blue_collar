@@ -19,6 +19,38 @@ from .executor import dispatch
 tornado.log.enable_pretty_logging()
 
 
+class StatsHandler(tornado.web.RequestHandler):
+    def get(self):
+        """
+        Retrieve the entire task body from the task store. 
+        This includes metadata such as start time, status 
+        and finish time if available.
+        """
+        all_stats = self.application.task_store.get_stats()
+        if all_stats:
+            all_stats = json.loads(all_stats)
+
+        for command, stats in all_stats.items():
+            for status in stats['status'].keys():
+                stats['status'][status] = len(stats['status'][status])
+
+            """Calculate avg time taken."""
+            if stats['status'].get('finished', 0) != 0:
+                time_taken = float(stats.pop('time_taken'))
+                stats['avg_time_taken'] = time_taken / stats['status']['finished']
+
+            """Calculate avg time in queue."""
+            all_tasks = sum(stats['status'].values())
+            if all_tasks != 0:
+                stats['avg_time_in_queue'] = stats.pop('time_in_queue', 0) / float(all_tasks - stats.get('queued', 0))
+
+            """Calculate error rate."""
+            done_tasks = sum(stats['status'].get(x, 0) for x in ('error', 'finished'))
+            if done_tasks != 0:
+                stats['error_rate'] = stats['status'].get('error', 0)  * 100.0 / done_tasks
+
+        self.write(all_stats)
+
 
 class TaskHandler(tornado.web.RequestHandler):
     def get(self, task_id):
@@ -68,8 +100,19 @@ class TaskHandler(tornado.web.RequestHandler):
 
 
 def work(port=8888, max_workers=4):
+    print(
+    """
+__________.__                  _________        .__  .__                
+\______   \  |  __ __   ____   \_   ___ \  ____ |  | |  | _____ _______ 
+ |    |  _/  | |  |  \_/ __ \  /    \  \/ /  _ \|  | |  | \__  \\\\_  __ \\
+ |    |   \  |_|  |  /\  ___/  \     \___(  <_> )  |_|  |__/ __ \|  | \/
+ |______  /____/____/  \___  >  \______  /\____/|____/____(____  /__|   
+        \/                 \/          \/                      \/       
+
+    """)
     application = tornado.web.Application([
-        (r"/tasks[/]{0,1}(.*)", TaskHandler)
+        (r"/tasks[/]{0,1}(.*)", TaskHandler),
+        (r"/stats", StatsHandler)
     ])
 
     application.worker_pool = ProcessPoolExecutor(max_workers=max_workers)

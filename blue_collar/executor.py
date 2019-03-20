@@ -1,4 +1,7 @@
 from functools import wraps
+from collections import defaultdict
+import inspect
+
 from tornado.escape import json_decode
 from tornado.web import HTTPError
 from .task_store import TaskStore
@@ -7,6 +10,7 @@ import time
 
 DB = TaskStore()
 COMMAND_MAPPINGS = {}
+TASK_STRUCTURE = defaultdict(dict)
 
 
 def dispatch(task_id):
@@ -30,22 +34,33 @@ def dispatch(task_id):
     task = DB.get(task_id)
     task = json_decode(task)
 
-    if task['command'] not in COMMAND_MAPPINGS:
-        raise Exception('No such command exists')
+    try:
+        if task['command'] not in COMMAND_MAPPINGS:
+            raise Exception('No such command exists')
 
-    task_runner = COMMAND_MAPPINGS[task['command']]
-    for sequence, step in task_runner.step.all().items():
+        task_cls = COMMAND_MAPPINGS[task['command']]
+        for sequence, step in TASK_STRUCTURE[task_cls].items():
 
-        _, status, step_fn = step
+            _, status, step_fn = step
 
-        task['status'] = status
+            task['status'] = status
+            DB.put(task_id, task)
+
+            step_fn(task['message'])
+
+        task['status'] = 'finished'
+        task['finish'] = datetime.now()
+
+    except Exception as e:
+        task['error'] = {
+            'step': task['status'],
+            'reason': f'{ e.__class__.__name__ }: { e.args[0] }'
+        }
+
+        task['status'] = 'error'
+
+    finally:
         DB.put(task_id, task)
-
-        step_fn(task['message'])
-
-    task['status'] = 'finished'
-    task['finish'] = datetime.now()
-    DB.put(task_id, task)
 
 
 def command(command_name):
@@ -59,6 +74,36 @@ def command(command_name):
         def wrapper(*args, **kwargs):
             return cls(*args, **kwargs)
 
-        COMMAND_MAPPINGS[command_name] = cls
+        COMMAND_MAPPINGS[command_name] = cls.__name__
         return wrapper
     return decorator
+
+
+class step():
+    """
+    A decorator in the form of a class. The goal 
+    of this class is to create an expressive syntax
+    such that a task can be broken in to multiple
+    pieces and status' can be defined for each of
+    those pieces.
+    """
+    def add_step(self, step):
+        order, status, fn = step
+        if order in TASK_STRUCTURE[self.class_name]:
+            raise Exception('Multiple subtasks have the same `order`')
+
+        TASK_STRUCTURE[self.class_name][order] = step
+
+    def __init__(self, status='running', order=0):
+        self.class_name = inspect.currentframe().f_back.f_code.co_name
+        self.status = status
+        self.order = order
+
+
+    def __call__(self, fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            fn(*args, **kwargs)
+
+        self.add_step((self.order, self.status, fn))
+        return wrapper
