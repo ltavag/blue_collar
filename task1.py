@@ -1,22 +1,32 @@
 import blue_collar
-from blue_collar.task_runner import TaskRunner
-from blue_collar.executor import command
+from blue_collar.executor import command, step
 import time
 
-
 @command('sleeper')
-class Sleeper(TaskRunner):
+class Sleeper():
     """An example task."""
 
-    @TaskRunner.step(status='first_sleep', order=1)
+    @step(status='first_sleep', order=1)
     def fn1(message):
-        time.sleep(20) 
+        time.sleep(2) 
         print('Woke up to pee!')
 
-    @TaskRunner.step(status='second_sleep', order=2)
+    @step(status='second_sleep', order=2)
     def fn2(message):
-        time.sleep(10) 
+        time.sleep(2) 
         print('It must be morning')
 
-if __name__ == '__main__':
-    blue_collar.work()
+
+@command('error_sleeper')
+class ErrorSleeper():
+    """An example task."""
+
+    @step(status='first_sleep', order=1)
+    def fn1(message):
+        time.sleep(2) 
+        print('Woke up to pee!')
+
+    @step(status='second_sleep', order=2)
+    def fn2(message):
+        time.sleep(2) 
+        raise Exception('Oh no, missed my alarm')
